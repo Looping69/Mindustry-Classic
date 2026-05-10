@@ -1,8 +1,5 @@
 package io.anuke.mindustry.desktop;
 
-import club.minnced.discord.rpc.DiscordEventHandlers;
-import club.minnced.discord.rpc.DiscordRPC;
-import club.minnced.discord.rpc.DiscordRichPresence;
 import com.badlogic.gdx.utils.Base64Coder;
 import io.anuke.kryonet.DefaultThreadImpl;
 import io.anuke.mindustry.core.GameState.State;
@@ -31,12 +28,14 @@ public class DesktopPlatform extends Platform {
     final static DateFormat format = SimpleDateFormat.getDateTimeInstance();
     String[] args;
 
+    private Object discordRpc;
+    private Class<?> discordPresenceClass;
+
     public DesktopPlatform(String[] args){
         this.args = args;
 
         if(useDiscord) {
-            DiscordEventHandlers handlers = new DiscordEventHandlers();
-            DiscordRPC.INSTANCE.Discord_Initialize(applicationId, handlers, true, "");
+            initDiscord();
         }
     }
 
@@ -62,36 +61,44 @@ public class DesktopPlatform extends Platform {
 
     @Override
     public void updateRPC() {
-        if(!useDiscord) return;
+        if(discordRpc == null) return;
 
-        DiscordRichPresence presence = new DiscordRichPresence();
+        Object presence = newDiscordPresence();
+        if(presence == null) return;
 
         if(!state.is(State.menu)){
-            presence.state = Strings.capitalize(state.mode.name()) + ", Solo";
-            presence.details = Strings.capitalize(world.getMap().name) + " | Wave " + state.wave;
-            presence.largeImageText = "Wave " + state.wave;
+            setDiscordPresenceField(presence, "state", Strings.capitalize(state.mode.name()) + ", Solo");
+            setDiscordPresenceField(presence, "details", Strings.capitalize(world.getMap().name) + " | Wave " + state.wave);
+            setDiscordPresenceField(presence, "largeImageText", "Wave " + state.wave);
 
             if(Net.active()){
-                presence.partyMax = 16;
-                presence.partySize = playerGroup.size();
-                presence.state = Strings.capitalize(state.mode.name());
+                setDiscordPresenceField(presence, "partyMax", 16);
+                setDiscordPresenceField(presence, "partySize", playerGroup.size());
+                setDiscordPresenceField(presence, "state", Strings.capitalize(state.mode.name()));
             }
         }else{
             if(ui.editor != null && ui.editor.isShown()){
-                presence.state = "In Editor";
+                setDiscordPresenceField(presence, "state", "In Editor");
             }else {
-                presence.state = "In Menu";
+                setDiscordPresenceField(presence, "state", "In Menu");
             }
         }
 
-        presence.largeImageKey = "logo";
+        setDiscordPresenceField(presence, "largeImageKey", "logo");
 
-        DiscordRPC.INSTANCE.Discord_UpdatePresence(presence);
+        try{
+            discordRpc.getClass().getMethod("Discord_UpdatePresence", discordPresenceClass).invoke(discordRpc, presence);
+        }catch(Throwable ignored){
+        }
     }
 
     @Override
     public void onGameExit() {
-        if(useDiscord) DiscordRPC.INSTANCE.Discord_Shutdown();
+        if(discordRpc == null) return;
+        try{
+            discordRpc.getClass().getMethod("Discord_Shutdown").invoke(discordRpc);
+        }catch(Throwable ignored){
+        }
     }
 
     @Override
@@ -138,5 +145,37 @@ public class DesktopPlatform extends Platform {
         byte[] result = new byte[8];
         System.arraycopy(bytes, 0, result, 0, bytes.length);
         return !new String(Base64Coder.encode(result)).equals("AAAAAAAAAOA=");
+    }
+
+    private void initDiscord(){
+        try{
+            Class<?> rpcClass = Class.forName("club.minnced.discord.rpc.DiscordRPC");
+            Class<?> handlersClass = Class.forName("club.minnced.discord.rpc.DiscordEventHandlers");
+            discordPresenceClass = Class.forName("club.minnced.discord.rpc.DiscordRichPresence");
+
+            discordRpc = rpcClass.getField("INSTANCE").get(null);
+            Object handlers = handlersClass.getConstructor().newInstance();
+
+            rpcClass.getMethod("Discord_Initialize", String.class, handlersClass, boolean.class, String.class)
+                    .invoke(discordRpc, applicationId, handlers, true, "");
+        }catch(Throwable ignored){
+            discordRpc = null;
+            discordPresenceClass = null;
+        }
+    }
+
+    private Object newDiscordPresence(){
+        try{
+            return discordPresenceClass.getConstructor().newInstance();
+        }catch(Throwable ignored){
+            return null;
+        }
+    }
+
+    private void setDiscordPresenceField(Object presence, String field, Object value){
+        try{
+            discordPresenceClass.getField(field).set(presence, value);
+        }catch(Throwable ignored){
+        }
     }
 }

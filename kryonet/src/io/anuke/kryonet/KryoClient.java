@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ObjectSet;
 import com.esotericsoftware.kryonet.*;
 import com.esotericsoftware.kryonet.Listener.LagListener;
+import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.minlog.Log;
 import io.anuke.mindustry.net.Host;
 import io.anuke.mindustry.net.Net;
@@ -41,7 +42,7 @@ public class KryoClient implements ClientProvider{
             }
 
             @Override
-            public void onDiscoveredHost(DatagramPacket datagramPacket) {
+            public void onDiscoveredHost(DatagramPacket datagramPacket, Kryo kryo) {
                 ByteBuffer buffer = ByteBuffer.wrap(datagramPacket.getData());
                 Host address = NetworkIO.readServerData(datagramPacket.getAddress().getHostAddress(), buffer);
                 addresses.put(datagramPacket.getAddress(), address);
@@ -53,7 +54,7 @@ public class KryoClient implements ClientProvider{
             }
         };
 
-        client = new Client(8192, 2048, connection -> new ByteSerializer());
+        client = new Client(8192, 2048, new ByteSerializer());
         client.setDiscoveryHandler(handler);
 
         Listener listener = new Listener(){
@@ -71,7 +72,6 @@ public class KryoClient implements ClientProvider{
                 Disconnect c = new Disconnect();
 
                 Gdx.app.postRunnable(() -> Net.handleClientReceived(c));
-                if(connection.getLastProtocolError() != null) Log.error("\n\n\n\nProtocol error: " + connection.getLastProtocolError() + "\n\n\n\n");
             }
 
             @Override

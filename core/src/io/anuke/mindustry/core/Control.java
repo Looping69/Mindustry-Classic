@@ -17,7 +17,7 @@ import io.anuke.ucore.*;
 import io.anuke.ucore.core.*;
 import io.anuke.ucore.core.Inputs.*;
 import io.anuke.ucore.entities.*;
-import io.anuke.ucore.modules.*;
+import io.anuke.ucore.modules.Module;
 import io.anuke.ucore.scene.ui.layout.*;
 import io.anuke.ucore.util.*;
 

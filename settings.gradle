@@ -1,1 +1,22 @@
-include 'desktop', 'html', 'core', 'android', 'kryonet', 'server', 'ios'
+import java.net.InetAddress
+
+def forceAllPlatforms = gradle.startParameter.projectProperties.containsKey("allPlatforms") ||
+        gradle.startParameter.projectProperties.containsKey("includeAllPlatforms")
+
+def canResolveDlGoogle = true
+try{
+    InetAddress.getByName("dl.google.com")
+}catch(Throwable ignored){
+    canResolveDlGoogle = false
+}
+
+def includeAllPlatforms = forceAllPlatforms || canResolveDlGoogle
+gradle.ext.includeAllPlatforms = includeAllPlatforms
+
+include 'desktop', 'core', 'kryonet', 'server'
+
+if(includeAllPlatforms){
+    include 'android', 'html', 'ios'
+}else{
+    println "[settings] dl.google.com is not resolvable; skipping :android/:html/:ios. Use -PallPlatforms to force include."
+}

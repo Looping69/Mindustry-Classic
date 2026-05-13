@@ -2,8 +2,9 @@ package io.anuke.kryonet;
 
 import com.badlogic.gdx.utils.reflect.ClassReflection;
 import com.badlogic.gdx.utils.reflect.ReflectionException;
+import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.FrameworkMessage;
-import com.esotericsoftware.kryonet.serialization.Serialization;
+import com.esotericsoftware.kryonet.Serialization;
 import io.anuke.mindustry.net.Packet;
 import io.anuke.mindustry.net.Registrator;
 
@@ -12,7 +13,7 @@ import java.nio.ByteBuffer;
 public class ByteSerializer implements Serialization {
 
     @Override
-    public void write(ByteBuffer byteBuffer, Object o) {
+    public void write(Connection connection, ByteBuffer byteBuffer, Object o) {
         if(o instanceof FrameworkMessage){
             byteBuffer.put((byte)-2); //code for framework message
             FrameworkSerializer.write(byteBuffer, (FrameworkMessage)o);
@@ -28,7 +29,7 @@ public class ByteSerializer implements Serialization {
     }
 
     @Override
-    public Object read(ByteBuffer byteBuffer) {
+    public Object read(Connection connection, ByteBuffer byteBuffer) {
         try {
             byte id = byteBuffer.get();
             if(id == -2){

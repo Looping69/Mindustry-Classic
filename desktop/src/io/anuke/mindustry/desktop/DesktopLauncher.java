@@ -16,7 +16,7 @@ public class DesktopLauncher {
 		config.setTitle("Mindustry Classic");
 		config.setMaximized(true);
 		config.setWindowedMode(960, 540);
-		config.setWindowIcon("sprites/icon.png");
+		config.setWindowIcon("sprites/icon16.png", "sprites/icon32.png", "sprites/icon64.png", "sprites/icon128.png");
 
         Platform.instance = new DesktopPlatform(arg);
 

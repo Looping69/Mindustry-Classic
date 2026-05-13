@@ -8,6 +8,7 @@ import com.esotericsoftware.kryonet.FrameworkMessage;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Listener.LagListener;
 import com.esotericsoftware.kryonet.Server;
+import com.esotericsoftware.kryonet.ServerDiscoveryHandler;
 import com.esotericsoftware.kryonet.util.InputStreamSender;
 import io.anuke.mindustry.Vars;
 import io.anuke.mindustry.net.*;
@@ -30,6 +31,8 @@ import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedSelectorException;
+import java.nio.channels.DatagramChannel;
+import java.lang.reflect.Proxy;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -48,13 +51,8 @@ public class KryoServer implements ServerProvider {
     int lastconnection = 0;
 
     public KryoServer(){
-        server = new Server(4096*2, 2048, connection -> new ByteSerializer());
-        server.setDiscoveryHandler((datagramChannel, fromAddress) -> {
-            ByteBuffer buffer = NetworkIO.writeServerData();
-            buffer.position(0);
-            datagramChannel.send(buffer, fromAddress);
-            return true;
-        });
+        server = new Server(4096*2, 2048, new ByteSerializer());
+        server.setDiscoveryHandler(createDiscoveryHandler());
 
         Listener listener = new Listener(){
 
@@ -111,6 +109,29 @@ public class KryoServer implements ServerProvider {
         }else{
             server.addListener(listener);
         }
+    }
+
+    private static ServerDiscoveryHandler createDiscoveryHandler(){
+        return (ServerDiscoveryHandler)Proxy.newProxyInstance(ServerDiscoveryHandler.class.getClassLoader(), new Class[]{ServerDiscoveryHandler.class}, (proxy, method, args) -> {
+            if(!method.getName().equals("onDiscoverHost")) return null;
+
+            // args[0]: UdpConnection (package-private), args[1]: InetSocketAddress, args[2]: Serialization
+            Object udpConnection = args[0];
+            InetSocketAddress fromAddress = (InetSocketAddress)args[1];
+
+            ByteBuffer data = NetworkIO.writeServerData();
+            data.position(0);
+
+            try{
+                java.lang.reflect.Field channelField = udpConnection.getClass().getDeclaredField("datagramChannel");
+                channelField.setAccessible(true);
+                DatagramChannel channel = (DatagramChannel)channelField.get(udpConnection);
+                channel.send(data, fromAddress);
+            }catch(Throwable ignored){
+            }
+
+            return true;
+        });
     }
 
     @Override
@@ -319,14 +340,14 @@ public class KryoServer implements ServerProvider {
         public void send(Object object, SendMode mode){
             if(socket != null){
                 try {
-                    synchronized (buffer) {
-                        buffer.position(0);
-                        serializer.write(buffer, object);
-                        int pos = buffer.position();
-                        buffer.position(0);
-                        byte[] out = new byte[pos];
-                        buffer.get(out);
-                        String string = new String(Base64Coder.encode(out));
+                        synchronized (buffer) {
+                            buffer.position(0);
+                            serializer.write(null, buffer, object);
+                            int pos = buffer.position();
+                            buffer.position(0);
+                            byte[] out = new byte[pos];
+                            buffer.get(out);
+                            String string = new String(Base64Coder.encode(out));
                         socket.send(string);
                     }
                 }catch (WebsocketNotConnectedException e){
@@ -422,7 +443,7 @@ public class KryoServer implements ServerProvider {
 
                     byte[] out = Base64Coder.decode(message);
                     ByteBuffer buffer = ByteBuffer.wrap(out);
-                    Object o = serializer.read(buffer);
+                    Object o = serializer.read(null, buffer);
                     Gdx.app.postRunnable(() -> {
                         try {
                             Net.handleServerReceived(id, o);
